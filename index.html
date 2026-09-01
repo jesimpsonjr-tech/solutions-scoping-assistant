@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solution Scoping Assistant | John Simpson</title>
+<meta name="description" content="Interactive demo: scope the right payment setup for a merchant, the way a solutions engineer scopes a deal in discovery.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+  :root{
+    --paper:#EEF1F4; --paper-2:#E4E9EE; --card:#FBFCFD;
+    --ink:#16202B; --ink-soft:#46545F; --ink-faint:#7C8A94;
+    --line:#C9D3DB; --signal:#0F6E8C; --signal-lo:#DCEBF0;
+    --live:#1F9D6B; --warn:#B8860B; --warn-lo:#F5EBD0;
+    --radius:6px; --maxw:920px;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:"IBM Plex Mono",ui-monospace,monospace; }
+  a{ color:inherit; text-decoration:none; }
+  .wrap{ max-width:var(--maxw); margin:0 auto; padding:0 22px; }
+
+  /* top bar */
+  header.top{ border-bottom:1px solid var(--line); background:rgba(238,241,244,.92); backdrop-filter:blur(6px); position:sticky; top:0; z-index:30; }
+  .top .wrap{ display:flex; align-items:center; justify-content:space-between; height:56px; }
+  .back{ font-size:13px; color:var(--ink-soft); display:inline-flex; align-items:center; gap:7px; }
+  .back:hover{ color:var(--signal); }
+  .top .title{ font-size:14px; font-weight:600; }
+
+  /* intro */
+  .intro{ padding:44px 0 22px; }
+  .eyebrow{ font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--signal); margin-bottom:14px; }
+  .intro h1{ font-size:clamp(24px,4vw,34px); line-height:1.1; letter-spacing:-.02em; max-width:20ch; }
+  .intro p{ margin-top:14px; color:var(--ink-soft); max-width:62ch; font-size:15.5px; }
+  .controls{ margin-top:22px; display:flex; gap:12px; flex-wrap:wrap; }
+  .btn{ border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:var(--radius); padding:10px 16px; font-size:14px; font-weight:500; cursor:pointer; font-family:inherit; transition:.15s; }
+  .btn:hover{ border-color:var(--signal); color:var(--signal); }
+  .btn.primary{ background:var(--signal); color:#fff; border-color:var(--signal); }
+  .btn.primary:hover{ background:#0c5c75; color:#fff; }
+  .btn:disabled{ opacity:.5; cursor:default; }
+  .btn .demo-icon{ display:inline-block; margin-right:6px; }
+
+  /* scenario strip */
+  .scenario{ background:var(--signal-lo); border:1px solid #BEDCE4; border-radius:var(--radius); padding:14px 16px; margin-top:22px; display:flex; gap:12px; align-items:flex-start; }
+  .scenario .tag{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal); font-weight:600; white-space:nowrap; padding-top:2px; }
+  .scenario p{ margin:0; font-size:14.5px; color:var(--ink); }
+
+  /* progress */
+  .progress{ display:flex; gap:6px; margin:30px 0 22px; }
+  .progress .seg{ flex:1; height:4px; background:var(--line); border-radius:2px; transition:background .3s; }
+  .progress .seg.done{ background:var(--signal); }
+  .progress .seg.active{ background:var(--signal); opacity:.55; }
+
+  /* question card */
+  .qcard{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:26px; position:relative; }
+  .qcard .qmeta{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .qcard .qnum{ font-size:12px; color:var(--ink-faint); }
+  .qcard h2{ font-size:20px; letter-spacing:-.01em; margin-bottom:4px; padding-right:30px; }
+  .tip-btn{ position:absolute; top:24px; right:24px; width:24px; height:24px; border-radius:50%; border:1px solid var(--line); background:var(--paper); color:var(--ink-faint); font-size:13px; cursor:pointer; font-family:inherit; line-height:1; }
+  .tip-btn:hover, .tip-btn.on{ border-color:var(--signal); color:var(--signal); }
+  .tip{ display:none; margin:12px 0 4px; font-size:13.5px; color:var(--ink-soft); background:var(--paper-2); border-left:2px solid var(--signal); padding:10px 12px; border-radius:0 var(--radius) var(--radius) 0; }
+  .tip.show{ display:block; }
+  .tip .lbl{ font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal); font-weight:600; display:block; margin-bottom:3px; }
+
+  .options{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+  .opt{ border:1px solid var(--line); background:var(--paper); border-radius:var(--radius); padding:14px 15px; cursor:pointer; font-size:14.5px; transition:.13s; text-align:left; font-family:inherit; color:var(--ink); }
+  .opt:hover{ border-color:var(--signal); background:var(--card); }
+  .opt.sel{ border-color:var(--signal); background:var(--signal-lo); font-weight:500; }
+  .opt .sub{ display:block; font-size:12px; color:var(--ink-faint); margin-top:3px; font-weight:400; }
+
+  .qnav{ display:flex; justify-content:space-between; margin-top:20px; }
+
+  /* result */
+  .result{ display:none; scroll-margin-top:72px; }
+  .result.show{ display:block; }
+  .rc{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:26px; margin-bottom:16px; }
+  .rc h3{ font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--signal); margin-bottom:14px; }
+  .rec-item{ padding:12px 0; border-bottom:1px solid var(--line); }
+  .rec-item:last-child{ border-bottom:none; }
+  .rec-item .rk{ font-size:12px; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.05em; }
+  .rec-item .rv{ font-size:16px; font-weight:500; margin-top:3px; }
+  .rec-item .rd{ font-size:13.5px; color:var(--ink-soft); margin-top:4px; }
+
+  .priority-band{ background:var(--signal-lo); border:1px solid #BEDCE4; border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+  .priority-band .pk{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal); font-weight:600; }
+  .priority-band .pv{ font-size:15px; margin-top:5px; }
+
+  .watch li{ list-style:none; padding:11px 0 11px 26px; position:relative; font-size:14px; color:var(--ink); border-bottom:1px solid var(--line); }
+  .watch li:last-child{ border-bottom:none; }
+  .watch li::before{ content:"!"; position:absolute; left:0; top:10px; width:17px; height:17px; background:var(--warn-lo); color:var(--warn); border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  .excl li{ list-style:none; padding:10px 0 10px 26px; position:relative; font-size:13.5px; color:var(--ink-soft); border-bottom:1px solid var(--line); }
+  .excl li:last-child{ border-bottom:none; }
+  .excl li::before{ content:"\00d7"; position:absolute; left:2px; top:8px; color:var(--ink-faint); font-size:15px; }
+  .excl li b{ color:var(--ink); font-weight:600; }
+
+  .insight{ background:#132430; color:#DDE7EC; border-radius:var(--radius); padding:20px 22px; margin-bottom:16px; }
+  .insight .il{ font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:#6FB9CE; font-weight:600; margin-bottom:8px; }
+  .insight p{ font-size:14.5px; line-height:1.6; }
+
+  .result-actions{ display:flex; gap:12px; flex-wrap:wrap; margin-top:4px; }
+
+  /* tour overlay */
+  .overlay{ position:fixed; inset:0; background:rgba(22,32,43,.55); z-index:50; display:none; align-items:center; justify-content:center; padding:20px; }
+  .overlay.show{ display:flex; }
+  .tour{ background:var(--card); border-radius:10px; max-width:440px; width:100%; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+  .tour .step-dots{ display:flex; gap:6px; margin-bottom:18px; }
+  .tour .step-dots i{ width:7px; height:7px; border-radius:50%; background:var(--line); }
+  .tour .step-dots i.on{ background:var(--signal); }
+  .tour h4{ font-size:19px; margin-bottom:10px; letter-spacing:-.01em; }
+  .tour p{ font-size:14.5px; color:var(--ink-soft); line-height:1.6; }
+  .tour .tour-nav{ display:flex; justify-content:space-between; align-items:center; margin-top:22px; }
+  .tour .skip{ font-size:13px; color:var(--ink-faint); cursor:pointer; background:none; border:none; font-family:inherit; }
+  .tour .skip:hover{ color:var(--ink-soft); }
+
+  /* demo-mode banner */
+  .demobar{ display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:40; background:var(--ink); color:var(--paper); border-radius:100px; padding:10px 20px; font-size:13.5px; align-items:center; gap:14px; box-shadow:0 8px 24px rgba(0,0,0,.25); }
+  .demobar.show{ display:flex; }
+  .demobar .live-dot{ width:8px; height:8px; border-radius:50%; background:var(--live); animation:pulse 1.6s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(31,157,107,.5);} 70%{box-shadow:0 0 0 7px rgba(31,157,107,0);} 100%{box-shadow:0 0 0 0 rgba(31,157,107,0);} }
+  .demobar button{ background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:100px; padding:5px 12px; font-size:12.5px; cursor:pointer; font-family:inherit; }
+  .demobar button:hover{ background:rgba(255,255,255,.28); }
+
+  /* footer */
+  footer{ border-top:1px solid var(--line); padding:26px 0; margin-top:44px; }
+  footer .wrap{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  footer .a{ font-size:13px; color:var(--ink-soft); }
+  footer .n{ font-size:12px; color:var(--ink-faint); margin-top:3px; }
+
+  @media (max-width:640px){
+    .options{ grid-template-columns:1fr; }
+    .top .title{ display:none; }
+    .demobar{ width:calc(100% - 32px); justify-content:center; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .demobar .live-dot{ animation:none; }
+    html{ scroll-behavior:auto; }
+    *{ transition:none !important; }
+  }
+  :focus-visible{ outline:2px solid var(--signal); outline-offset:2px; }
+
+  /* fake cursor for demo mode */
+  #fakeCursor{
+    position:fixed; top:0; left:0; z-index:60; pointer-events:none;
+    display:none; opacity:0;
+    transition:transform 1.1s cubic-bezier(.4,.1,.25,1), opacity .3s;
+    filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));
+  }
+  #fakeCursor.show{ display:block; opacity:1; }
+  #fakeCursor.clicking svg{ animation:cursorClick .35s ease; }
+  @keyframes cursorClick{ 0%{transform:scale(1);} 45%{transform:scale(.72);} 100%{transform:scale(1);} }
+  /* ring pulse where the cursor clicks */
+  .click-ring{
+    position:fixed; z-index:59; pointer-events:none;
+    width:14px; height:14px; border-radius:50%;
+    border:2px solid var(--signal); transform:translate(-50%,-50%);
+    animation:clickRing .5s ease-out forwards;
+  }
+  @keyframes clickRing{
+    0%{ opacity:.8; width:14px; height:14px; }
+    100%{ opacity:0; width:46px; height:46px; }
+  }
+  /* option about to be clicked in demo */
+  .opt.demo-target{ border-color:var(--signal); background:var(--signal-lo); box-shadow:0 0 0 3px var(--signal-lo); }
+
+  @media (prefers-reduced-motion:reduce){
+    #fakeCursor{ transition:opacity .3s; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="back" href="https://johnsimpson.io/">&larr; johnsimpson.io</a>
+    <span class="title">Solution Scoping Assistant</span>
+    <span></span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="intro">
+    <div class="eyebrow mono">Discovery &middot; Payment Scoping</div>
+    <h1>Scope the right payment setup for a merchant.</h1>
+    <p>This is the work a solutions engineer does in early discovery: take a merchant's loose description of their business and turn it into a scoped, defensible recommendation, methods, integration approach, what to watch for, and what to leave out. Answer as if you were the SE. The tool shows the reasoning at each step.</p>
+    <div class="controls">
+      <button class="btn primary" id="scopeBtn">Scope a merchant</button>
+      <button class="btn" id="startBtn"><span class="demo-icon">&#9658;</span>Watch it run itself</button>
+      <button class="btn" id="tourBtn">How this works</button>
+    </div>
+    <div class="scenario">
+      <span class="tag">Your prospect</span>
+      <p id="scenarioText">A merchant has reached out. All you know so far is that they want to start accepting payments. Everything else, you find out by asking. Start with the first question below.</p>
+    </div>
+  </section>
+
+  <div class="progress" id="progress"></div>
+
+  <!-- QUESTION AREA -->
+  <section class="qcard" id="qcard">
+    <div class="qmeta"><span class="qnum mono" id="qnum">Question 1 of 6</span></div>
+    <h2 id="qtext">How do customers pay this merchant?</h2>
+    <button class="tip-btn" id="tipBtn" title="Why this question matters">i</button>
+    <div class="tip" id="tip"><span class="lbl">Why this question matters</span><span id="tipText"></span></div>
+    <div class="options" id="options"></div>
+    <div class="qnav">
+      <button class="btn" id="backBtn" disabled>Back</button>
+      <span></span>
+    </div>
+  </section>
+
+  <!-- RESULT AREA -->
+  <section class="result" id="result">
+    <div class="priority-band">
+      <div class="pk">Optimized for</div>
+      <div class="pv" id="priorityText"></div>
+    </div>
+
+    <div class="rc">
+      <h3>Recommended setup</h3>
+      <div id="recList"></div>
+    </div>
+
+    <div class="rc">
+      <h3>Watch for</h3>
+      <ul class="watch" id="watchList"></ul>
+    </div>
+
+    <div class="insight">
+      <div class="il">Solution insight</div>
+      <p id="insightText"></p>
+    </div>
+
+    <div class="rc">
+      <h3>Deliberately left out</h3>
+      <ul class="excl" id="exclList"></ul>
+    </div>
+
+    <div class="result-actions">
+      <button class="btn primary" id="restartBtn">Scope another merchant</button>
+      <a class="btn" href="https://johnsimpson.io/">See other demos</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="a">Built by John Simpson &middot; 20 years in enterprise fintech &amp; payments</div>
+      <div class="n">Code is AI-assisted. Domain expertise and solution design are mine. All scenarios are illustrative; no pricing is quoted.</div>
+    </div>
+  </div>
+</footer>
+
+<!-- TOUR OVERLAY -->
+<div class="overlay" id="overlay">
+  <div class="tour">
+    <div class="step-dots" id="tourDots"></div>
+    <h4 id="tourTitle"></h4>
+    <p id="tourBody"></p>
+    <div class="tour-nav">
+      <button class="skip" id="tourSkip">Skip</button>
+      <button class="btn primary" id="tourNext">Next</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEMO MODE BANNER -->
+<div class="demobar" id="demobar">
+  <span class="live-dot"></span>
+  <span id="demoMsg">Running a sample merchant&hellip;</span>
+  <button id="demoStop">Stop</button>
+</div>
+
+<!-- FAKE CURSOR for demo mode -->
+<div id="fakeCursor" aria-hidden="true">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M5 3l14 7-6 1.5L10 18 5 3z" fill="#16202B" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>
+  </svg>
+</div>
+
+<script>
+/* ---------------- DATA ---------------- */
+const QUESTIONS = [
+  {
+    id:"channel",
+    q:"How do customers pay this merchant?",
+    tip:"Channel drives everything downstream. Card-present versus card-not-present changes hardware needs, fraud exposure, and even interchange rates. It is the first fork in any payments scoping conversation.",
+    options:[
+      {v:"inperson", label:"In person", sub:"Storefront, terminal, POS"},
+      {v:"online", label:"Online", sub:"Website or app checkout"},
+      {v:"invoicing", label:"Invoicing", sub:"Bills customers, gets paid later"},
+      {v:"mix", label:"A mix", sub:"More than one of the above"}
+    ]
+  },
+  {
+    id:"model",
+    q:"What do they sell, and how often?",
+    tip:"Recurring revenue and large B2B invoices point toward bank rails like ACH. High-volume, low-ticket sales make per-transaction card fees add up fast. The business model narrows the method set before you ever talk price.",
+    options:[
+      {v:"onetime", label:"One-time purchases", sub:"Retail, single sales"},
+      {v:"subscription", label:"Subscriptions", sub:"Recurring billing"},
+      {v:"b2b", label:"Large invoices (B2B)", sub:"Business customers"},
+      {v:"highvol", label:"High volume, low ticket", sub:"Many small payments"}
+    ]
+  },
+  {
+    id:"ticket",
+    q:"What is a typical transaction size?",
+    tip:"Card fees are largely percentage-based, so a $5,000 sale carries a much larger fee than a $50 one. Large tickets favor bank rails; very small tickets make flat per-transaction costs painful. Ticket size quietly decides a lot.",
+    options:[
+      {v:"micro", label:"Under $25", sub:"Micro-payments"},
+      {v:"small", label:"$25 to $500", sub:"Everyday consumer"},
+      {v:"mid", label:"$500 to $5,000", sub:"Considered purchases"},
+      {v:"large", label:"$5,000+", sub:"Big-ticket or B2B"}
+    ]
+  },
+  {
+    id:"speed",
+    q:"How fast do they need the money?",
+    tip:"Speed versus cost is the core rail tradeoff. Instant rails like RTP and FedNow move money in seconds but do not reach every bank yet. ACH is inexpensive but takes days. Cards settle in a couple of days. What the merchant needs here rules options in or out.",
+    options:[
+      {v:"instant", label:"Instant", sub:"Money in seconds"},
+      {v:"nextday", label:"Same or next day", sub:"Fast, not instant"},
+      {v:"fewdays", label:"A few days is fine", sub:"Cost matters more"},
+      {v:"unsure", label:"Not sure yet", sub:"No strong need"}
+    ]
+  },
+  {
+    id:"eng",
+    q:"What engineering resources do they have?",
+    tip:"This is the classic scoping fork. A merchant with no technical staff needs hosted checkout or no-code. A dedicated dev team can take a full API and own more of the flow. Recommending an integration heavier than the team can support is how go-lives slip.",
+    options:[
+      {v:"team", label:"Dedicated dev team", sub:"Can build to an API"},
+      {v:"few", label:"A developer or two", sub:"Limited capacity"},
+      {v:"none", label:"No technical staff", sub:"Needs it turnkey"},
+      {v:"unsure", label:"Not sure", sub:"Assume limited"}
+    ]
+  },
+  {
+    id:"priority",
+    q:"What is their biggest concern?",
+    tip:"You cannot optimize cost, speed, fraud, and ease of setup all at once. Naming the top priority is what lets you make a real recommendation instead of a menu. This answer decides which tradeoff the whole setup gets tuned around.",
+    options:[
+      {v:"cost", label:"Cost", sub:"Keep fees down"},
+      {v:"speed", label:"Speed", sub:"Fast access to funds"},
+      {v:"fraud", label:"Fraud & risk", sub:"Protect against loss"},
+      {v:"ease", label:"Ease of setup", sub:"Live quickly, low effort"}
+    ]
+  }
+];
+
+const PRIORITY_LABELS = {
+  cost:"Keeping cost down. The setup below leans on lower-cost rails and flags where fees would otherwise creep up.",
+  speed:"Speed of funds. The setup favors faster settlement, with the honest limits of instant rails called out.",
+  fraud:"Fraud and risk control. The setup gives the merchant more control over screening and verification.",
+  ease:"Ease and speed of setup. The setup minimizes engineering lift so the merchant can go live quickly."
+};
+
+/* ---------------- SCOPING LOGIC ---------------- */
+function scope(a){
+  const rec = [];      // {k, v, d}
+  const watch = [];
+  const excl = [];     // {name, why}
+  let insight = "";
+
+  const online = a.channel==="online" || a.channel==="mix";
+  const inperson = a.channel==="inperson" || a.channel==="mix";
+  const wantsInstant = a.speed==="instant";
+  const bigTicket = a.ticket==="large" || a.ticket==="mid";
+  const smallTicket = a.ticket==="micro" || a.ticket==="small";
+
+  /* --- primary methods / rails --- */
+  let methods = [];
+  if(inperson) methods.push("card acceptance at the point of sale");
+  if(online) methods.push("online card acceptance (card-not-present)");
+  if(a.model==="subscription") methods.push("card-on-file for recurring billing, with ACH as a lower-cost fallback");
+  if(a.model==="b2b" || a.channel==="invoicing") methods.push("ACH for invoice settlement");
+  if(a.model==="highvol" && smallTicket) methods.push("ACH or a low-cost rail to avoid per-transaction card fees");
+  if(wantsInstant) methods.push("RTP or FedNow where the receiving bank supports it");
+  if(methods.length===0) methods.push("card acceptance as a general-purpose starting point");
+  // de-dupe
+  methods = [...new Set(methods)];
+  rec.push({k:"Payment methods & rails", v:methods[0].charAt(0).toUpperCase()+methods[0].slice(1),
+            d: methods.length>1 ? "Also: "+methods.slice(1).join("; ")+"." : ""});
+
+  /* --- integration approach (channel-driven) --- */
+  let integ, integD;
+  if(a.channel==="inperson"){
+    if(a.eng==="team" && (a.priority==="fraud" || a.priority==="cost")){
+      integ = "Semi-integrated terminal + POS integration";
+      integD = "A payment terminal handles the card data, keeping it out of the merchant's own systems and reducing PCI scope, integrated to their POS so sales and payments stay in sync. A capable team can integrate deeper for reporting and reconciliation.";
+    } else {
+      integ = "Smart terminal / countertop or mobile reader";
+      integD = "A preconfigured payment terminal or mobile card reader. Minimal setup, the device handles card data and PCI scope, and it works out of the box for a storefront with little or no technical staff.";
+    }
+  } else if(a.channel==="online"){
+    if(a.eng==="none" || a.eng==="unsure"){
+      integ = "Hosted checkout / payment links";
+      integD = "The customer pays on a prebuilt, hosted page (or via a payment link). No engineering to maintain, fastest path to live, and the processor carries most of the PCI compliance surface.";
+    } else if(a.eng==="team" && (a.priority==="fraud" || a.priority==="cost")){
+      integ = "Full API / direct integration";
+      integD = "A dedicated team integrates the payment API directly, keeping full control of the checkout flow, routing, and fraud tooling. More build effort, and the most control over cost and risk.";
+    } else {
+      integ = "Prebuilt SDK / embedded components";
+      integD = "Drop-in elements handle the sensitive card fields while the merchant keeps a native-feeling checkout. A middle path that fits a small dev team without taking on full PCI scope.";
+    }
+  } else if(a.channel==="invoicing"){
+    if(a.eng==="team"){
+      integ = "Invoicing API + pay-by-link";
+      integD = "Invoices are issued and reconciled programmatically, each carrying a secure payment link. A team can wire this into their ERP or billing system so receivables update automatically.";
+    } else {
+      integ = "Pay-by-link / hosted invoice payment";
+      integD = "Each invoice includes a secure link to a hosted payment page. No engineering required, and it fits a finance team sending bills without developer involvement.";
+    }
+  } else { /* mix */
+    if(a.eng==="team"){
+      integ = "Unified provider: terminal + online API";
+      integD = "One processor spanning in-person terminals and online checkout, integrated via API so reporting, settlement, and customer records stay unified across channels. Suits a team that can build to it.";
+    } else {
+      integ = "Unified provider: terminal + hosted checkout";
+      integD = "A single provider offering both payment terminals and a hosted online checkout, so in-person and online sales settle and report in one place with minimal engineering.";
+    }
+  }
+  rec.push({k:"Integration approach", v:integ, d:integD});
+
+  /* --- watch-for flags --- */
+  if(smallTicket && !a.model.includes("b2b")) watch.push("Percentage-based card fees bite hardest on small tickets. If volume is high, model ACH or an aggregated method before committing to cards alone.");
+  if(wantsInstant) watch.push("RTP and FedNow are instant but do not reach every bank yet. Confirm the merchant's customers (and their banks) can actually receive on the chosen rail before promising instant.");
+  if((a.model==="b2b"||a.channel==="invoicing") && bigTicket) watch.push("Large ACH payments carry return and fraud risk (for example, insufficient funds or unauthorized debits). Plan for verification and a returns process.");
+  if(a.model==="subscription") watch.push("Recurring card payments fail when cards expire or are replaced. Account updater services and a dunning process protect revenue.");
+  if(online) watch.push("Card-not-present carries higher fraud exposure than in-person. Match the level of fraud screening to the ticket size and margin.");
+  if(a.eng==="none" && a.priority==="fraud") watch.push("Strong fraud control usually needs some integration depth. With no technical staff, lean on the processor's built-in risk tools and revisit as the team grows.");
+  if(watch.length===0) watch.push("No major risk flags from these answers. Revisit scope once real transaction volume and mix are known.");
+
+  /* --- deliberate exclusions --- */
+  if(!wantsInstant) excl.push({name:"Instant rails (RTP / FedNow)", why:"no signal speed is a priority, and they add setup and reach constraints for little benefit here."});
+  excl.push({name:"Crypto / stablecoin rails", why:"nothing in the merchant's profile calls for them, and they add compliance and volatility overhead."});
+  if(a.eng!=="team") excl.push({name:"Fully custom in-house payment stack", why:"the engineering capacity is not there to build or maintain it; a prebuilt path fits better."});
+  if(!(a.model==="b2b"||a.channel==="invoicing")) excl.push({name:"ACH-only setup", why:"consumer-facing sales need card acceptance; ACH alone would lose customers at checkout."});
+
+  /* --- solution insight (translate one technical choice to business value) --- */
+  if(a.priority==="cost" && (a.model==="b2b"||a.channel==="invoicing"||smallTicket)){
+    insight = "Steering large or recurring payments to ACH instead of cards is not just a technical preference. On a $5,000 invoice, the difference between a percentage-based card fee and a low flat ACH fee can be the difference between a healthy margin and a thin one. The rail choice here is a direct lever on the merchant's take-home revenue.";
+  } else if(a.priority==="speed"){
+    insight = "Choosing an instant rail changes the merchant's cash flow, not just their tech stack. Getting funds in seconds instead of days can decide whether a small business can restock, make payroll, or take the next order. But because reach is incomplete, the honest move is to offer instant where it works and a reliable fallback everywhere else.";
+  } else if(a.priority==="fraud"){
+    insight = "More control over the checkout flow means more control over fraud losses, which land straight on the merchant's bottom line as chargebacks and write-offs. The integration depth recommended here is really a decision about who absorbs risk: the deeper the integration, the more the merchant can tune screening to their own margins.";
+  } else {
+    if(a.channel==="inperson"){
+      insight = "Recommending a preconfigured terminal for a lean team is a business call as much as a technical one. Every week spent wiring up a custom in-person setup is a week not spent selling. A turnkey reader trades some control for speed to revenue, which is usually the right trade until volume justifies deeper POS integration.";
+    } else {
+      insight = "Recommending a hosted or drop-in setup for a lean team is a business call as much as a technical one. Every week spent building and maintaining a custom flow is a week not spent selling. Turnkey acceptance trades some control for speed to revenue, which is usually the right trade until volume justifies more.";
+    }
+  }
+
+  return {rec, watch, excl, insight, priority:a.priority};
+}
+
+/* ---------------- STATE + RENDER ---------------- */
+let cur = 0;
+const answers = {};
+let demoMode = false, demoTimer = null;
+
+const el = id => document.getElementById(id);
+
+function renderProgress(){
+  const p = el("progress"); p.innerHTML = "";
+  for(let i=0;i<QUESTIONS.length;i++){
+    const s = document.createElement("div");
+    s.className = "seg" + (i<cur?" done":"") + (i===cur?" active":"");
+    p.appendChild(s);
+  }
+}
+
+function renderQuestion(){
+  el("result").classList.remove("show");
+  el("qcard").style.display = "";
+  const Q = QUESTIONS[cur];
+  el("qnum").textContent = `Question ${cur+1} of ${QUESTIONS.length}`;
+  el("qtext").textContent = Q.q;
+  el("tipText").textContent = Q.tip;
+  el("tip").classList.remove("show");
+  el("tipBtn").classList.remove("on");
+  el("backBtn").disabled = (cur===0);
+  const wrap = el("options"); wrap.innerHTML = "";
+  Q.options.forEach(o=>{
+    const b = document.createElement("button");
+    b.className = "opt" + (answers[Q.id]===o.v ? " sel":"");
+    b.innerHTML = `${o.label}<span class="sub">${o.sub}</span>`;
+    b.onclick = ()=> choose(Q.id, o.v);
+    wrap.appendChild(b);
+  });
+  renderProgress();
+  // scenario text update
+  el("scenarioText").textContent = cur===0
+    ? "A merchant has reached out. All you know so far is that they want to start accepting payments. Everything else, you find out by asking."
+    : "You are building a picture of the merchant with each answer. Keep going, or open 'Why this question matters' on any step.";
+}
+
+function choose(id, v){
+  answers[id] = v;
+  renderQuestion();
+  setTimeout(()=>{
+    if(cur < QUESTIONS.length-1){ cur++; renderQuestion(); }
+    else { showResult(); }
+  }, demoMode ? 120 : 260);
+}
+
+function showResult(){
+  el("qcard").style.display = "none";
+  renderProgress();
+  el("progress").querySelectorAll(".seg").forEach(s=>s.classList.add("done"));
+  const r = scope(answers);
+  el("priorityText").textContent = PRIORITY_LABELS[r.priority];
+  el("recList").innerHTML = r.rec.map(x=>
+    `<div class="rec-item"><div class="rk">${x.k}</div><div class="rv">${x.v}</div>${x.d?`<div class="rd">${x.d}</div>`:""}</div>`).join("");
+  el("watchList").innerHTML = r.watch.map(w=>`<li>${w}</li>`).join("");
+  el("insightText").textContent = r.insight;
+  el("exclList").innerHTML = r.excl.map(e=>`<li><b>${e.name}:</b> ${e.why}</li>`).join("");
+  el("result").classList.add("show");
+  el("result").scrollIntoView({behavior: demoMode?"smooth":"auto", block:"start"});
+}
+
+function restart(){
+  cur = 0;
+  for(const k in answers) delete answers[k];
+  el("result").classList.remove("show");
+  el("qcard").style.display = "";
+  renderQuestion();
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+/* ---- tooltip ---- */
+el("tipBtn").onclick = ()=>{
+  el("tip").classList.toggle("show");
+  el("tipBtn").classList.toggle("on");
+};
+el("backBtn").onclick = ()=>{ if(cur>0){ cur--; renderQuestion(); } };
+el("restartBtn").onclick = restart;
+el("scopeBtn").onclick = ()=>{
+  stopDemo(false);
+  restart();
+  el("qcard").scrollIntoView({behavior:"smooth", block:"center"});
+};
+
+/* ---------------- TOUR ---------------- */
+const TOUR = [
+  {t:"What this is", b:"This demo walks through scoping a payment setup for a merchant, the same judgment a solutions engineer applies in early discovery. You answer a few business questions and it builds a recommendation."},
+  {t:"The scenario", b:"You play the SE. A merchant wants to accept payments; you learn their business one question at a time. Each question has a 'why it matters' note, tap the 'i' to see the reasoning."},
+  {t:"What you get", b:"At the end: a scoped setup, the tradeoff it optimized for, things to watch out for, and what was deliberately left out and why. The exclusions are as important as the recommendations."},
+  {t:"Short on time?", b:"Tap 'Watch it run itself' and the tool auto-plays a sample merchant from first question to final recommendation, no clicking required."}
+];
+let tourStep = 0;
+function renderTour(){
+  el("tourTitle").textContent = TOUR[tourStep].t;
+  el("tourBody").textContent = TOUR[tourStep].b;
+  el("tourDots").innerHTML = TOUR.map((_,i)=>`<i class="${i===tourStep?"on":""}"></i>`).join("");
+  el("tourNext").textContent = tourStep===TOUR.length-1 ? "Got it" : "Next";
+}
+function openTour(){ tourStep=0; renderTour(); el("overlay").classList.add("show"); }
+function closeTour(){ el("overlay").classList.remove("show"); }
+el("tourBtn").onclick = openTour;
+el("tourSkip").onclick = closeTour;
+el("tourNext").onclick = ()=>{ if(tourStep<TOUR.length-1){ tourStep++; renderTour(); } else closeTour(); };
+el("overlay").onclick = e=>{ if(e.target===el("overlay")) closeTour(); };
+
+/* ---------------- DEMO MODE (animated cursor) ---------------- */
+const DEMO_ANSWERS = { channel:"invoicing", model:"b2b", ticket:"large", speed:"fewdays", eng:"none", priority:"cost" };
+const DEMO_ORDER = ["channel","model","ticket","speed","eng","priority"];
+const DEMO_MSGS = [
+  "Sample merchant: a B2B distributor that sends large invoices",
+  "They bill business customers, not walk-in consumers",
+  "Their invoices run several thousand dollars each",
+  "A few days to settle is fine, they are not in a rush",
+  "They have no in-house engineering team",
+  "Their top priority is keeping costs down"
+];
+
+let demoIdx = 0;
+const cursor = el("fakeCursor");
+
+function moveCursorTo(x, y){ cursor.style.transform = `translate(${x}px, ${y}px)`; }
+function clickRingAt(x, y){
+  const ring = document.createElement("div");
+  ring.className = "click-ring";
+  ring.style.left = x + "px"; ring.style.top = y + "px";
+  document.body.appendChild(ring);
+  setTimeout(()=> ring.remove(), 520);
+}
+
+function startDemo(){
+  restart();
+  demoMode = true;
+  demoIdx = 0;
+  el("demobar").classList.add("show");
+  el("startBtn").disabled = true;
+  el("scopeBtn").disabled = true;
+  cursor.classList.add("show");
+  moveCursorTo(window.innerWidth/2 - 12, window.innerHeight - 60);
+  setTimeout(demoStep, 1400);
+}
+
+function demoStep(){
+  if(!demoMode) return;
+  if(demoIdx >= DEMO_ORDER.length){ finishDemo(); return; }
+
+  const id = DEMO_ORDER[demoIdx];
+  el("demoMsg").innerHTML = DEMO_MSGS[demoIdx];
+
+  const Q = QUESTIONS[cur];
+  const optIdx = Q.options.findIndex(o=>o.v===DEMO_ANSWERS[id]);
+  const btns = el("options").querySelectorAll(".opt");
+  const target = btns[optIdx];
+  if(!target){ choose(id, DEMO_ANSWERS[id]); demoIdx++; setTimeout(demoStep, 1600); return; }
+
+  const r = target.getBoundingClientRect();
+  const tx = r.left + r.width*0.5 - 4;
+  const ty = r.top + r.height*0.5 - 2;
+  moveCursorTo(tx, ty);
+  target.classList.add("demo-target");
+
+  demoTimer = setTimeout(()=>{
+    if(!demoMode) return;
+    cursor.classList.add("clicking");
+    clickRingAt(tx + 4, ty + 2);
+    setTimeout(()=> cursor.classList.remove("clicking"), 360);
+    demoTimer = setTimeout(()=>{
+      if(!demoMode) return;
+      target.classList.remove("demo-target");
+      choose(id, DEMO_ANSWERS[id]);
+      demoIdx++;
+      demoTimer = setTimeout(demoStep, 1500);
+    }, 480);
+  }, 1500);
+}
+
+function finishDemo(){
+  el("demoMsg").textContent = "Recommendation ready. This is the scoped setup.";
+  cursor.classList.remove("show");
+  setTimeout(()=>{
+    demoMode = false;
+    el("demobar").classList.remove("show");
+    el("startBtn").disabled = false;
+    el("scopeBtn").disabled = false;
+  }, 2600);
+}
+
+function stopDemo(silent){
+  demoMode = false;
+  clearTimeout(demoTimer);
+  cursor.classList.remove("show","clicking");
+  document.querySelectorAll(".opt.demo-target").forEach(o=>o.classList.remove("demo-target"));
+  el("demobar").classList.remove("show");
+  el("startBtn").disabled = false;
+  el("scopeBtn").disabled = false;
+}
+
+el("startBtn").onclick = startDemo;
+el("demoStop").onclick = ()=> stopDemo(false);
+
+/* ---------------- INIT ---------------- */
+renderQuestion();
+// show the orienting tour once on load
+setTimeout(openTour, 500);
+</script>
+</body>
+</html>
